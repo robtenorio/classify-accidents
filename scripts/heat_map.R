@@ -34,10 +34,3 @@ ggmap(tartu_map_g_str, extent = "device") + geom_density2d(data = tartu_housing_
                  aes(x = lon, y = lat, fill = ..level.., alpha = ..level..), size = 0.01, 
                  bins = 16, geom = "polygon") + scale_fill_gradient(low = "green", high = "red") + 
   scale_alpha(range = c(0, 0.3), guide = FALSE)
-
-ggmap(map) + 
-  geom_point(data = frage_3_daten, aes(x = lng_google, y = lat_google, colour = pronunciation_id), alpha = 0.2) + 
-  scale_colour_hue(name = "Aussprache", labels = c("Krampus", "Grittibänz")) +
-  ggtitle("Gebäck in Form einer menschlichen Gestalt") +
-  xlab("Länge") + ylab("Breite") +
-  theme_srf()

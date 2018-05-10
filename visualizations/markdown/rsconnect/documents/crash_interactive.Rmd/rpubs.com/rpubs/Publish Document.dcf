@@ -1,0 +1,10 @@
+name: Publish Document
+title:
+username:
+account: rpubs
+server: rpubs.com
+hostUrl: rpubs.com
+appId: https://api.rpubs.com/api/v1/document/387173/353c2caa6f5e47d8a2f06baf0fe04529
+bundleId: https://api.rpubs.com/api/v1/document/387173/353c2caa6f5e47d8a2f06baf0fe04529
+url: http://rpubs.com/robtenorio/387173
+when: 1525827895.75989

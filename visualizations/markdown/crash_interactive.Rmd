@@ -1,0 +1,26 @@
+---
+title: "Geocoded Crash Sites Since February 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(leaflet)
+library(ggplot2)
+library(tidyverse)
+
+crash_sites <- read_csv("accidents_clustered.csv") %>%
+  select(lat.wgs84, lon.wgs84) %>%
+  set_names("lat", "long")
+
+crash_sites_geo <- crash_sites %>%
+  filter(!is.na(lat) & !is.na(long))
+
+m <- leaflet(data = crash_sites) %>% setView(lng = 36.8219, lat = -1.2921, zoom = 12) %>% 
+  addTiles() %>% 
+  addCircleMarkers(~long, ~lat, clusterOptions = markerClusterOptions())
+
+```
+```{r echo=FALSE}
+m
+```
+Accidents are clustered by radius to a centroid depending on zoom level. Zoom in and out to see different levels of clustering.

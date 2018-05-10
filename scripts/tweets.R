@@ -2,11 +2,11 @@
 library(here)
 library(rtweet)
 
-world.old <- stream_tweets(
-  "585372692",
-  timeout = FALSE,
+stream_tweets(
+  "@CNN",
+  timeout = 30,
   parse = FALSE,
-  file_name = here("tweets", "ma3route-tweets.json"),
+  file_name = here("tweets", "all-tweets.json"),
   append = TRUE
 )
 
