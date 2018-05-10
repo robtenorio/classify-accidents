@@ -9,12 +9,12 @@ library(twilio)
 word_index <- readRDS("supporting_files/word_index.rds")
 
 # First you need to set up your accound SID and token as environmental variables
-Sys.setenv(TWILIO_SID = "AC6cc00fe6d81b56208ae565760e7fd510")
-Sys.setenv(TWILIO_TOKEN = "d25f7ce67a9546146abc8ad609d376ad")
+Sys.setenv(TWILIO_SID = "")
+Sys.setenv(TWILIO_TOKEN = "")
 
 # Then we're just going to store the numbers in some variables
-my_phone_number <- "2023200815"
-twilios_phone_number <- "2407022326"
+my_phone_number <- ""
+twilios_phone_number <- ""
 
 # make integer sequences of tweet text
 make_index_list <- function(x) {
