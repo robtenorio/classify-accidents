@@ -36,7 +36,7 @@ matatu_accidents_may2may <- matatu_accidents %>%
 matatu_accidents_feb2may <- matatu_accidents %>%
   filter(date >= ymd("2014-02-01") & date <= ymd("2014-04-30"))
 
-matatu_ts <- matatu_accidents %>%
+matatu_ts <- matatu_accidents_may2may %>%
   mutate(date = floor_date(date, "m")) %>%
   group_by(date, injuries) %>%
   summarise(n = n()) %>%
@@ -75,6 +75,38 @@ binded_govt_twitter <- rbind(govt_fatalities2, accidents2)
 matatu_accidents_feb2may2 <- matatu_accidents_feb2may[shared_names_twitter_matatu]
 accidents3 <- accidents[,shared_names_twitter_matatu]
 binded_matatu_twitter <- rbind(matatu_accidents_feb2may2, accidents3)
+
+# months don't overlap
+binded_govt_twitter_month <- binded_govt_twitter %>%
+  group_by(month, source) %>%
+  summarise(n = n())
+
+binded_govt_twitter_day <- binded_govt_twitter %>%
+  group_by(day, source) %>%
+  summarise(n = n())
+
+binded_govt_twitter_hour <- binded_govt_twitter %>%
+  group_by(hour, source) %>%
+  summarise(n = n())
+
+### Matatu data
+counties <- c("Nairobi", "Kiambu", "Murang'a", "Kajiado", "Machakos")
+ke_counties <- getData("GADM", level = 1, country = "KEN")
+ke_constituencies <- getData("GADM", level =2, country = "KEN")
+nairobi_counties <- ke_counties[ke_counties@data$NAME_1 %in% counties,]
+nairobi_constituencies <- ke_constituencies[ke_constituencies@data$NAME_1 %in% counties, ]
+
+## create a data frame of counts at the constituency level
+matatu_accidents_constituency <- matatu_accidents_may2may %>%
+  group_by(constituency) %>%
+  summarise(n = n()) %>%
+  left_join(nairobi_constituencies@data[,c("OBJECTID", "NAME_2")], by = c("constituency" = "NAME_2"))
+
+nairobi_df <- tidy(nairobi_constituencies) %>%
+  mutate(OBJECTID = as.numeric(id)) %>%
+  left_join(matatu_accidents_constituency, by = "OBJECTID")
+
+nairobi_df_noNA <- nairobi_df[!is.na(nairobi_df$n),]
 
 # create a color palette
 cbPalette <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
@@ -115,20 +147,6 @@ ggplot(accidents) +
   theme_classic() + 
   ggtitle("Geocoded Accidents in Nairobi by Hour of Day and Day of Week \n Feb. 2018 to April 2018") +
   theme(plot.title = element_text(lineheight = 1, hjust = 0.50))
-
-### map twitter accidents with month animation
-accidents$month_int <- as.numeric(accidents$month)
-
-map.1 <- get_googlemap(center = c(lon = 36.8219, lat = -1.2921), zoom = 12, scale = 2, maptype = "hybrid")
-
-p <- ggmap(map.1, extent = "device") +
-  geom_point(data = accidents, aes(x = lon.wgs84, y = lat.wgs84, frame = month_int,
-                                   cumulative = TRUE), 
-             alpha = 1, size = 3, color = "#56B4E9") +
-  scale_colour_manual(values=cbPalette, name = "Day of Week")
-
-gganimate(p, filename = "visualizations/animated_map_points.gif", title_frame = FALSE, 
-          ani.width = 700, interval = 2)
 
 #### Twitter and Govt Data Plots
 #### Twitter Plots
@@ -180,19 +198,6 @@ ggplot(binded_govt_twitter) +
   theme(plot.title = element_text(lineheight = 0.5, hjust = 0.50))
 
 ## Grouped Govt. Twitter Bars
-# months don't overlap
-binded_govt_twitter_month <- binded_govt_twitter %>%
-  group_by(month, source) %>%
-  summarise(n = n())
-
-binded_govt_twitter_day <- binded_govt_twitter %>%
-  group_by(day, source) %>%
-  summarise(n = n())
-
-binded_govt_twitter_hour <- binded_govt_twitter %>%
-  group_by(hour, source) %>%
-  summarise(n = n())
-
 ggplot(binded_govt_twitter_day) +
   geom_bar(aes(x = day, y = n, fill = source), color = "black", 
            stat = "identity", position = position_dodge()) +
@@ -329,48 +334,31 @@ ggplot(binded_matatu_twitter) +
   theme(plot.title = element_text(lineheight = 1, hjust = 0.5))
 
 #### Map Matatu data
-counties <- c("Nairobi", "Kiambu", "Murang'a", "Kajiado", "Machakos")
-ke_counties <- getData("GADM", level = 1, country = "KEN")
-ke_constituencies <- getData("GADM", level =2, country = "KEN")
-nairobi_counties <- ke_counties[ke_counties@data$NAME_1 %in% counties,]
-nairobi_constituencies <- ke_constituencies[ke_constituencies@data$NAME_1 %in% counties, ]
-
-## create a data frame of counts at the county level
-matatu_accidents_constituency <- matatu_accidents %>%
-  group_by(constituency) %>%
-  summarise(n = n()) %>%
-  left_join(nairobi_constituencies@data[,c("OBJECTID", "NAME_2")], by = c("constituency" = "NAME_2"))
-
-nairobi_df <- tidy(nairobi_constituencies) %>%
-  mutate(OBJECTID = as.numeric(id)) %>%
-  left_join(matatu_accidents_constituency, by = "OBJECTID")
-
-nairobi_df_noNA <- nairobi_df[!is.na(nairobi_df$n),]
-
 ### map twitter accidents
 map.2 <- get_googlemap(center = c(lon = 36.8219, lat = -1.2921), zoom = 10, scale = 2, maptype = "hybrid")
 
-matatu_map_guide <- ggmap(map.2, extent = "device") +
+matatu_map_guide <- ggmap(map.2) +
   geom_polygon(data = nairobi_df_noNA, aes(x = long, y = lat, fill = n, group = group), alpha = 0.3) +
-  scale_fill_continuous(low = "#E69F00", high = "#56B4E9", "Number of \nMatatu Accidents") +
+  scale_fill_continuous(low = cbPalette[1], high = cbPalette[2], "Number of \nMatatu Accidents") +
   theme(line = element_blank(),
         axis.text = element_blank(),
         axis.title = element_blank(),
         panel.background = element_blank()) +
   coord_equal()
 
-matatu_map_Noguide <- ggmap(map.2, extent = "device") +
+matatu_map_Noguide <- ggmap(map.2) +
   geom_polygon(data = nairobi_df_noNA, aes(x = long, y = lat, fill = n, group = group), alpha = 0.3) +
-  scale_fill_continuous(low = "#E69F00", high = "#56B4E9", "Number of \nMatatu Accidents", guide = FALSE) +
+  scale_fill_continuous(low = cbPalette[1], high = cbPalette[2], "Number of \nMatatu Accidents", guide = FALSE) +
   theme(line = element_blank(),
         axis.text = element_blank(),
         axis.title = element_blank(),
         panel.background = element_blank()) +
   coord_equal()
 
-twitter_map <- ggmap(map.2, extent = "device") +
+twitter_map <- ggmap(map.2) +
   geom_point(data = accidents, aes(x = lon.wgs84, y = lat.wgs84), 
-             alpha = 0.5, size = 2, color = "#56B4E9") +
+             alpha = 0.5, size = 2, color = cbPalette[2], 
+             fill = "black", stroke = 1) +
   theme(line = element_blank(),
         axis.text = element_blank(),
         axis.title = element_blank(),
@@ -431,7 +419,6 @@ sum(top_30_3km) # 34% of accidents happen in 7 3x3km areas
 top_30_3km_ids <- as.numeric(names(top_30_3km))
 top_30_3km_grids <- grid_3km_counties[match(top_30_3km_ids, grid_3km_counties$grid_id),]
 
-
 ### 2x2km grids
 # in which counties are the grids?
 top_38_2km_counties <- table(pointsNgrids_2km$NAME_1[match(top_38_2km_ids, pointsNgrids_2km$grid_id)])
@@ -485,7 +472,7 @@ map.4 <- get_googlemap(center = c(lon = 36.8219, lat = -1.2921), zoom = 12, scal
 
 grid_map_1km <- ggmap(map.4) +
   geom_polygon(data = top_19_1km_grids_df, aes(x = long, y = lat, group = group),
-               alpha = 0.5, size = 1, fill = cbPalette[1], color = cbPalette[2]) +
+               alpha = 0.5, size = 0.5, fill = cbPalette[1], color = "black") +
   theme(line = element_blank(),
         axis.text = element_blank(),
         axis.title = element_blank(),
@@ -493,7 +480,8 @@ grid_map_1km <- ggmap(map.4) +
   coord_equal()
 
 
-ggsave("visualizations/grid_map_5km.png", grid_map)
+ggsave("visualizations/grid_map_2km.png", grid_map_2km)
+ggsave("visualizations/grid_map_1km.png", grid_map_1km)
 
 
 ggsave("visualizations/matatu_map_constituencies.pdf", matatu_map_guide)
