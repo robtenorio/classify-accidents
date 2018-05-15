@@ -1,0 +1,23 @@
+.content {
+  background: #707070
+}
+
+.box-header {
+}
+
+.box-title {
+
+}
+
+#hours {
+  height:auto;
+  -webkit-column-count: 2;
+  -moz-column-count: 2;
+  column-count: 2;
+}
+
+div.checkbox {margin-top: 0px;}
+
+.checkbox label, .radio label {
+  font-size: 1.45em;
+}
