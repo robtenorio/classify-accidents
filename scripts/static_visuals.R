@@ -41,7 +41,8 @@ matatu_accidents <- read_csv("matatu_data/processed_incidents.csv") %>%
   mutate(month = month(date, label = TRUE)) %>%
   mutate(day = wday(date, label = TRUE)) %>%
   mutate(source = "matatu") %>%
-  filter(!is.na(county)) %>% filter(injuries != "Both")
+  filter(!is.na(county)) %>% filter(injuries != "Both") %>%
+  filter(county %in% counties)
 
 matatu_accidents_may2may <- matatu_accidents %>% 
   filter(date >= ymd("2012-05-01") & date <= ymd("2014-05-31"))
@@ -91,6 +92,7 @@ govt_fatalities_2018 <- read_csv("govt_data/OFFICIAL FATAL REPORT 2018.csv") %>%
   filter(!is.na(date)) %>%
   filter(month <= "May") %>% # there are some dates in August 2018, which is before this data were collected
   filter(month >= "Feb" & month <= "Apr") %>% # we'll keep Feb. to May for now to match our Twitter data
+  filter(county %in% tolower(counties)) %>% # keep only nairobi area
   mutate(hour = hour(date)) %>%
   mutate(source = "govt")
 
@@ -303,22 +305,22 @@ matatu_injuries_passengers <- ggplot(matatu_accidents_may2may) +
   ggtitle("Injuries by Number of Passengers Involved in Matatu Accidents") +
   theme(plot.title = element_text(lineheight = 0.5, hjust = 0.5))
 
-matatu_area_passengers <- ggplot(matatu_ts) +
+matatu_area <- ggplot(matatu_ts) +
   geom_area(aes(x = date, y = n, color = injuries, fill = injuries), alpha = 0.5) + 
   scale_fill_manual(values = cbPalette, name = NULL) +
   scale_color_manual(values = cbPalette, guide = FALSE) +
   xlab("Year-Month") +
-  ylab("Number of Passengers") +
-  ggtitle("Number of Passengers Involved in Matatus Accidents (May 2012 to May 2014)") +
+  ylab("Number of Accidents") +
+  ggtitle("Number of Matatu Accidents (May 2012 to May 2014)") +
   theme_classic() +
   theme(plot.title = element_text(lineheight = 0.5, hjust = 0.5))
 
-matatu_line_passengers <- ggplot(matatu_ts) +
+matatu_line <- ggplot(matatu_ts) +
   geom_line(aes(x = date, y = n, color = injuries)) + 
   scale_color_manual(values = cbPalette, name = NULL) +
   xlab("Year-Month") +
-  ylab("Number of Passengers") +
-  ggtitle("Number of Passengers Involved in Matatus Accidents (May 2012 to May 2014)") +
+  ylab("Number of Accidents") +
+  ggtitle("Number of Matatu Accidents (May 2012 to May 2014)") +
   theme_classic() +
   theme(plot.title = element_text(lineheight = 0.5, hjust = 0.5))
 
@@ -327,23 +329,23 @@ area_animate <- ggplot(matatu_ts, aes(frame = date_int, cumulative = TRUE)) +
   scale_fill_manual(values = cbPalette, name = NULL) +
   scale_color_manual(values = cbPalette, guide = FALSE) +
   xlab("Year-Month") +
-  ylab("Number of Passengers") +
-  ggtitle("Number of Passengers Involved in Matatus Accidents (May 2012 to May 2014)") +
+  ylab("Number of Accidents") +
+  ggtitle("Number of Matatu Accidents (May 2012 to May 2014)") +
   theme_classic() +
   theme(plot.title = element_text(lineheight = 0.5, hjust = 0.5))
 
-gganimate(area_animate, filename = "visualizations/animated_area_monthly.gif", title_frame = FALSE, ani.width = 700, interval = 0.25)
+gganimate(area_animate, filename = "visualizations/matatu_plots/animated_area_monthly.gif", title_frame = FALSE, ani.width = 700, interval = 0.25)
   
 line_animate <- ggplot(matatu_ts, aes(frame = date_int, cumulative = TRUE)) +
   geom_line(aes(x = date, y = n, color = injuries)) + 
   scale_color_manual(values = cbPalette, name = NULL) +
   xlab("Year-Month") +
-  ylab("Number of Passengers") +
-  ggtitle("Number of Passengers Involved in Matatus Accidents (May 2012 to May 2014)") +
+  ylab("Number of Accidents") +
+  ggtitle("Number of Matatu Accidents (May 2012 to May 2014)") +
   theme_classic() +
   theme(plot.title = element_text(lineheight = 0.5, hjust = 0.5))
 
-gganimate(line_animate, filename = "visualizations/animated_line_monthly.gif", title_frame = FALSE, ani.width = 700, interval = 0.25)
+gganimate(line_animate, filename = "visualizations/matatu_plots/animated_line_monthly.gif", title_frame = FALSE, ani.width = 700, interval = 0.25)
 
 #### Twitter and Matatu Data Plots
 #### Twitter Plots
@@ -570,27 +572,27 @@ grid_map_1km <- ggmap(map.4) +
   coord_equal()
 
 
-ggsave("visualizations/twitter_hour.png", twitter_hour)
-ggsave("visualizations/twitter_day.png", twitter_day)
-ggsave("visualizations/twitter_month.png", twitter_month)
-ggsave("visualizations/twitter_hour_day.png", twitter_hour_day)
-ggsave("visualizations/twitter_line.png", twitter_line)
+ggsave("visualizations/twitter_plots/twitter_hour.png", twitter_hour)
+ggsave("visualizations/twitter_plots/twitter_day.png", twitter_day)
+ggsave("visualizations/twitter_plots/twitter_month.png", twitter_month)
+ggsave("visualizations/twitter_plots/twitter_hour_day.png", twitter_hour_day)
+ggsave("visualizations/twitter_plots/twitter_line.png", twitter_line)
 
-ggsave("visualizations/govt_twitter_day.png", govt_twitter_day)
-ggsave("visualizations/govt_twitter_hour.png", govt_twitter_hour)
-ggsave("visualizations/govt_twitter_month.png", govt_twitter_month)
+ggsave("visualizations/govt_plots/govt_twitter_day.png", govt_twitter_day)
+ggsave("visualizations/govt_plots/govt_twitter_hour.png", govt_twitter_hour)
+ggsave("visualizations/govt_plots/govt_twitter_month.png", govt_twitter_month)
 
-ggsave("visualizations/matatu_injuries_passengers.png", matatu_injuries_passengers)
-ggsave("visualizations/matatu_line_ts.png", matatu_line_passengers)
-ggsave("visualizations/matatu_area_ts.png", matatu_area_passengers)
-ggsave("visualizations/matatu_twitter_day.png", matatu_twitter_day)
-ggsave("visualizations/matatu_twitter_month.png", matatu_twitter_month)
+ggsave("visualizations/matatu_plots/matatu_injuries_passengers.png", matatu_injuries_passengers)
+ggsave("visualizations/matatu_plots/matatu_line_ts.png", matatu_line)
+ggsave("visualizations/matatu_plots/matatu_area_ts.png", matatu_area)
+ggsave("visualizations/matatu_plots/matatu_twitter_day.png", matatu_twitter_day)
+ggsave("visualizations/matatu_plots/matatu_twitter_month.png", matatu_twitter_month)
 
-ggsave("visualizations/grid_map_2km.png", grid_map_2km)
-ggsave("visualizations/grid_map_1km.png", grid_map_1km)
-ggsave("visualizations/govt_map_counties.png", govt_map_guide)
-ggsave("visualizations/matatu_map_constituencies.png", matatu_map_guide)
-ggsave("visualizations/twitter_map.png", twitter_map)
-ggsave("visualizations/accident_compare_map.png", arrangeGrob(twitter_map_short_title, matatu_map_noGuide, govt_map_noGuide, 
+ggsave("visualizations/maps/grid_map_2km.png", grid_map_2km)
+ggsave("visualizations/maps/grid_map_1km.png", grid_map_1km)
+ggsave("visualizations/maps/govt_map_counties.png", govt_map_guide)
+ggsave("visualizations/maps/matatu_map_constituencies.png", matatu_map_guide)
+ggsave("visualizations/maps/twitter_map.png", twitter_map)
+ggsave("visualizations/maps/accident_compare_map.png", arrangeGrob(twitter_map_short_title, matatu_map_noGuide, govt_map_noGuide, 
                                                               nrow = 1, ncol = 3))
 
