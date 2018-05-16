@@ -15,7 +15,16 @@ library(tidyverse)
 #### TWITTER DATA
 source("scripts/alltruth_clustering.r")
 accidents <- truth.geo.df %>%
-  mutate(source = "twitter")
+  mutate(source = "twitter") %>%
+  mutate(hour_int = factor(hour))
+
+accidents_avg <- accidents %>%
+  group_by(year) %>%
+  summarise(mean = n()/84)
+
+accidents_hour_avg <- accidents %>%
+  group_by(hour) %>%
+  summarise(mean = n()/84)
 
 accidents_ts <- accidents %>%
   mutate(date = floor_date(date, "d")) %>%
@@ -34,6 +43,7 @@ nairobi_constituencies <- ke_constituencies[ke_constituencies@data$NAME_1 %in% c
 matatu_accidents <- read_csv("matatu_data/processed_incidents.csv") %>%
   mutate(injuries = factor(maincategory, levels = c("BOTH", "INJURY", "NON INJURY"), 
                            labels = c("Both", "Injuries", "No Injuries"))) %>%
+  mutate(passengers_cat = cut(passengers, c(10,20,30,40,50,60,70))) %>%
   mutate(date = ymd_hms(incidentdate)) %>%
   mutate(county = factor(county)) %>% 
   mutate(county = reorder(county, county, function(x) -length(x))) %>%
@@ -42,10 +52,37 @@ matatu_accidents <- read_csv("matatu_data/processed_incidents.csv") %>%
   mutate(day = wday(date, label = TRUE)) %>%
   mutate(source = "matatu") %>%
   filter(!is.na(county)) %>% filter(injuries != "Both") %>%
-  filter(county %in% counties)
+  filter(county %in% counties) %>%
+  filter(year >= 2012)
 
 matatu_accidents_may2may <- matatu_accidents %>% 
-  filter(date >= ymd("2012-05-01") & date <= ymd("2014-05-31"))
+  filter(date >= ymd("2012-05-01") & date <= ymd("2014-04-30"))
+
+matatu_passengers_total<- matatu_accidents %>%
+  group_by(year, passengers_cat) %>%
+  summarise(n = n())
+
+matatu_passengers_avg <- matatu_accidents %>%
+  group_by(year, passengers_cat) %>%
+  mutate(days = case_when(year < 2014 ~ 365,
+                          year == 2014 ~ 223)) %>%
+  summarise(mean = n()/max(days))
+
+matatu_injuries_avg <- matatu_accidents %>%
+  group_by(year, injuries) %>%
+  mutate(days = case_when(year < 2014 ~ 365,
+                          year == 2014 ~ 223)) %>%
+  summarise(mean = n()/max(days))
+
+matatu_passengers_total_may2may <- matatu_accidents_may2may %>%
+  group_by(year, passengers_cat) %>%
+  summarise(n = n())
+
+matatu_passengers_avg_may2may <- matatu_accidents_may2may %>%
+  group_by(year, passengers_cat) %>%
+  summarise(mean = n()/365)
+
+saveRDS(matatu_accidents_may2may, "accidents-dashboard/data/matatu_may2012_2014.rds")
 
 matatu_accidents_feb2may <- matatu_accidents %>%
   filter(date >= ymd("2014-02-01") & date <= ymd("2014-04-30"))
@@ -270,14 +307,37 @@ ggplot(binded_govt_twitter_hour) +
   theme(plot.title = element_text(lineheight = 0.5, hjust = 0.5))
 
 #### Matatu Plots
-matatu_county <- ggplot(matatu_accidents_may2may) +
+matatu_county <- ggplot(matatu_accidents) +
   geom_bar(aes(x = county, fill = injuries), color = "black") +
   scale_fill_manual(values = cbPalette, name = NULL) +
   theme_classic() + 
   ylab("Number of Accidents") +
   xlab("County") +
-  ggtitle("Matatu Accidents by County (May 2012 to May 2014)") +
+  ggtitle("Matatu Accidents by County (Jan-2012 to Aug-2014)") +
   theme(plot.title = element_text(lineheight = 0.5, hjust = 0.5))
+
+matatu_total_year <- ggplot(matatu_accidents) +
+  geom_bar(aes(x = year, fill = injuries), color = "black") +
+  scale_fill_manual(values = cbPalette, name = NULL) +
+  theme_classic() + 
+  xlab("Year") +
+  ylab("Number of Accidents") +
+  ggtitle("Total Matatu Accidents by Year (Jan-2012 to Aug-2014)") +
+  theme(plot.title = element_text(lineheight = 0.5, hjust = 0.5))
+
+matatu_injuries_avg_year <- ggplot(matatu_injuries_avg) +
+  geom_col(aes(x = year, y = mean, color = injuries, fill = injuries), color = "black",
+           position = position_dodge()) +
+  geom_text(aes(x = year, y = mean, label = round(mean, 2)),
+            nudge_x = -0.12, nudge_y = 0.5) +
+  scale_fill_manual(values = cbPalette, name = NULL) +
+  theme_classic() + 
+  xlab("Year") +
+  ylab("Average Number of Accidents per Day") +
+  ggtitle("Average Daily Matatu Accidents by Year and Injury Status (Jan-2012 to Aug-2014)",
+          subtitle = "2012 and 2013 have 365 days, while 2014 has 223 days") +
+  theme(plot.title = element_text(lineheight = 0.5, hjust = 0.5),
+        plot.subtitle = element_text(lineheight = 0.5, hjust = 0.5))
 
 matatu_month <- ggplot(matatu_accidents) +
   geom_bar(aes(x = month, fill = injuries), color = "black") +
@@ -285,7 +345,7 @@ matatu_month <- ggplot(matatu_accidents) +
   theme_classic() + 
   xlab("Month") +
   ylab("Number of Accidents") +
-  ggtitle("Matatu Accidents by Month (May 2012 to May 2014)") +
+  ggtitle("Matatu Accidents by Month (Jan-2012 to Aug-2014)") +
   theme(plot.title = element_text(lineheight = 0.5, hjust = 0.5))
 
 matatu_day <- ggplot(matatu_accidents) +
@@ -294,16 +354,38 @@ matatu_day <- ggplot(matatu_accidents) +
   theme_classic() +
   xlab("Day of Week") +
   ylab("Number of Accidents") +
-  ggtitle("Matatu Accidents by Day of Week (May 2012 to May 2014)")
+  ggtitle("Matatu Accidents by Day of Week (Jan-2012 to Aug-2014)")
 
-matatu_injuries_passengers <- ggplot(matatu_accidents_may2may) +
+matatu_injuries_passengers <- ggplot(matatu_accidents) +
   geom_point(aes(x = passengers, y = injuredpersons, color = county)) + 
   scale_color_manual(values = cbPalette, name = "County") +
   theme_classic() + 
   xlab("Number of Passengers") +
   ylab("Number of Injuries") +
-  ggtitle("Injuries by Number of Passengers Involved in Matatu Accidents") +
+  ggtitle("Injuries by Number of Passengers Involved in Matatu Accidents (Jan-2012 to Aug-2014)") +
   theme(plot.title = element_text(lineheight = 0.5, hjust = 0.5))
+
+matatu_total_passengers_year <- ggplot(matatu_passengers_total) +
+  geom_bar(aes(x = year, y = n, color = passengers_cat, fill = passengers_cat), color = "black", 
+           stat = "identity", position = position_dodge()) +
+  scale_fill_manual(values = cbPalette, name = "Number of Passengers") + 
+  theme_classic() +
+  xlab("Year") +
+  ylab("Number of Accidents") +
+  ggtitle("Number of Matatu Accidents by No. Passengers (Jan-2012 to Aug-2014)") +
+  theme(plot.title = element_text(lineheight = 0.5, hjust = 0.5))
+
+matatu_avg_passengers_year <- ggplot(matatu_passengers_avg) +
+  geom_bar(aes(x = year, y = mean, color = passengers_cat, fill = passengers_cat), color = "black", 
+           stat = "identity", position = position_dodge()) +
+  scale_fill_manual(values = cbPalette, name = "Number of Passengers") + 
+  theme_classic() +
+  xlab("Year") +
+  ylab("Average Number of Accidents per Day") +
+  ggtitle("Average Daily Matatu Accidents by No. Passengers (Jan-2012 to Aug-2014)",
+          subtitle = "2012 and 2013 have 365 days, while 2014 has 223") +
+  theme(plot.title = element_text(lineheight = 0.5, hjust = 0.5), 
+        plot.subtitle = element_text(lineheight = 0.5, hjust = 0.5))
 
 matatu_area <- ggplot(matatu_ts) +
   geom_area(aes(x = date, y = n, color = injuries, fill = injuries), alpha = 0.5) + 
@@ -453,6 +535,18 @@ twitter_map_short_title <- ggmap(map.2) +
         panel.background = element_blank()) +
   coord_equal()
 
+### animated twitter map by hour of day
+p <- ggmap(map.2) + 
+  geom_point(data = accidents, aes(x = lon.wgs84, y = lat.wgs84, frame = hour_int, cumulative = TRUE), 
+             alpha = 1, size = 3, color = "red") +
+  theme(line = element_blank(),
+        axis.text = element_blank(),
+        axis.title = element_blank(),
+        panel.background = element_blank())
+
+gganimate(p, filename = "visualizations/crash_map_timeDay.gif", title_frame = FALSE, 
+          ani.width = 700, interval = 2)
+
 # grid (hotspot) mapping
 epsg <- 21037
 crs_string <- proj4string(nairobi_counties)
@@ -587,6 +681,10 @@ ggsave("visualizations/matatu_plots/matatu_line_ts.png", matatu_line)
 ggsave("visualizations/matatu_plots/matatu_area_ts.png", matatu_area)
 ggsave("visualizations/matatu_plots/matatu_twitter_day.png", matatu_twitter_day)
 ggsave("visualizations/matatu_plots/matatu_twitter_month.png", matatu_twitter_month)
+ggsave("visualizations/matatu_plots/matatu_total_year.png", matatu_total_year)
+ggsave("visualizations/matatu_plots/matatu_total_passengers_year.png", matatu_total_passengers_year)
+ggsave("visualizations/matatu_plots/matatu_avg_passengers_year.png", matatu_avg_passengers_year)
+ggsave("visualizations/matatu_plots/matatu_avg_injuries_year.png", matatu_injuries_avg_year)
 
 ggsave("visualizations/maps/grid_map_2km.png", grid_map_2km)
 ggsave("visualizations/maps/grid_map_1km.png", grid_map_1km)

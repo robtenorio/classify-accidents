@@ -8,58 +8,87 @@ library(readr)
 library(shiny)
 library(shinydashboard)
 
-twitter_sites <- readRDS("data/feb_may2018_clustered.rds") %>%
-  dplyr::select(lat.wgs84, lon.wgs84, date, year, month, day, hour) %>%
-  rename(lat = lat.wgs84, long = lon.wgs84)
+binded_data <- readRDS("data/binded_data.rds")
 
 # Define UI for application that draws dashboard
 header <- dashboardHeader(disable = TRUE)
-sidebar <- dashboardSidebar(disable = TRUE)
+sidebar <- dashboardSidebar(collapsed = FALSE,
+                            sidebarMenu(
+                              id = "tabs",                              
+                              menuItem("Twitter Data", tabName = "twitter"),
+                              menuItem("Govt-Matatu Data", tabName = "matatu")
+                            ),
+                            sidebarMenu(
+                              conditionalPanel("input.tabs === 'twitter'",
+                                               checkboxGroupInput("years_twitter", label = "Year",
+                                                                  choices = c("2018" = 2018),
+                                                                  selected = "2018"),
+                                               checkboxGroupInput("hours_twitter", label = "Time of Day",
+                                                                  choices = c(
+                                                                    "01:00-04:59" = "01:00-04:59",
+                                                                    "05:00-09:59" = "05:00-09:59",
+                                                                    "10:00-13:59" = "10:00-13:59",
+                                                                    "14:00-17:59" = "14:00-17:59",
+                                                                    "18:00-21:59" = "18:00-21:59",
+                                                                    "22:00-00:59" = "22:00-00:59"
+                                                                  ),
+                                                                  selected = c("01:00-04:59", "05:00-09:59",
+                                                                               "10:00-13:59", "14:00-17:59",
+                                                                               "18:00-21:59", "22:00-00:59")
+                                                                  )),
+                              conditionalPanel("input.tabs == 'matatu'",
+                                               checkboxGroupInput("years_matatu", label = "Year",
+                                                                  choices = c(
+                                                                    "2012" = 2012,
+                                                                    "2013" = 2013,
+                                                                    "2014" = 2014
+                                                                  ),
+                                                                  selected = c(2012, 2013, 2014)
+                                               ),
+                                               sliderInput("passengers", label = "Number of Passengers", min = 0, max = 70, value = c(10,20)),
+                                               checkboxGroupInput("injuries", label = "Were there Injuries?",
+                                                                  choices = c(
+                                                                    "Injuries" = "Injuries",
+                                                                    "No Injuries" = "No Injuries"
+                                                                  ),
+                                                                  selected = c("Injuries", "No Injuries")
+                                               )
+                                               )
+                            )
+)
+
 body <- dashboardBody(
   tags$head(tags$link(rel = "stylesheet", type = "text/css", href = "style.css")),
-  fluidRow(
-           box(width = 9, height = 500, title = "Map of Tweeted Accidents",
-               leafletOutput("map", height = 400)
-               ),
-           box(width = 3, height = 500, title = "Hour of Day",
-               checkboxGroupInput("hours", label = NULL,
-                                  choices = c(
-                                    "00:00" = 0,
-                                    "01:00" = 1,
-                                    "02:00" = 2,
-                                    "03:00" = 3,
-                                    "04:00" = 4,
-                                    "05:00" = 5,
-                                    "06:00" = 6,
-                                    "07:00" = 7,
-                                    "08:00" = 8,
-                                    "09:00" = 9,
-                                    "10:00" = 10,
-                                    "11:00" = 11,
-                                    "12:00" = 12,
-                                    "13:00" = 13,
-                                    "14:00" = 14,
-                                    "15:00" = 15,
-                                    "16:00" = 16,
-                                    "17:00" = 17,
-                                    "18:00" = 18,
-                                    "19:00" = 19,
-                                    "20:00" = 20,
-                                    "21:00" = 21,
-                                    "22:00" = 22,
-                                    "23:00" = 23,
-                                    "24:00" = 24
-                                  ),
-                                  selected = c(7, 8, 9, 10)
-               )
-           )
-    ),
-  fluidRow(
-    box(width = 12, height = 300, title = "Daily Accidents by Data Source",
-        plotlyOutput("line", height = 250)
-        )
+  tabItems(
+    tabItem(tabName = "twitter",
+      fluidRow(
+        box(width = 12, height = 800, title = "Map of Tweeted Accidents",
+            leafletOutput("map_twitter", height = 700)
+        ))
+      ),
+    tabItem(tabName = "matatu",
+            fluidRow(
+              box(width = 12, height = 800, title = "Map of Matatu Accidents",
+                  leafletOutput("map_matatu", height = 700)
+              )
+            )
+          ),
+    tabItem(tabName = "plots",
+            fluidRow(
+              box(width = 12, height = 300, title = "Daily Accidents by Data Source",
+                  plotlyOutput("lines", height = 250)
+                  )
+              ),
+            fluidRow(
+              box(width = 4, selectInput("lines_input", "Select Data Source", 
+                              choices = c("Twitter" = "twitter", 
+                                          "Govt-Matatu" = "matatu",
+                                          "Govt-Fatalities" = "fatalities"),
+                              selected = "twitter", multiple = TRUE))
+            )
+            )
     )
-  )
+)
 
 ui <- dashboardPage(
   header,
@@ -69,40 +98,76 @@ ui <- dashboardPage(
 
 # Define server logic
 server <- function(input, output) {
+
+  observe({
+    print(input$tabs)
+  })
    
-  output$map <- renderLeaflet({
+  output$map_twitter <- renderLeaflet({
     
     leaflet() %>% setView(lng = 36.8219, lat = -1.2921, zoom = 11) %>% 
       addTiles() %>% 
-      addFullscreenControl(position = "topleft", pseudoFullscreen = TRUE)
+      addFullscreenControl(position = "topleft", pseudoFullscreen = TRUE) %>%
+      addSearchOSM(options = searchOSMOptions(position = "topleft"))
 
   })
   
-  observe({
-    twitter_sites_geo <- twitter_sites %>%
-      filter(!is.na(lat) & !is.na(long)) %>%
-      filter(hour %in% input$hours)
+  output$map_matatu <- renderLeaflet({
     
-    leafletProxy("map", data = twitter_sites_geo) %>% 
-      clearGroup("markers") %>%
-      addCircleMarkers(~long, ~lat, clusterOptions = markerClusterOptions(), group = "markers")
-      #addCircles(~long, ~lat)
+    leaflet() %>% setView(lng = 36.8219, lat = -1.2921, zoom = 11) %>% 
+      addTiles() %>% 
+      addFullscreenControl(position = "topleft", pseudoFullscreen = TRUE) %>%
+      addSearchOSM(options = searchOSMOptions(position = "topleft"))
     
   })
   
-  output$line <- renderPlotly({
-    all_ts <- readRDS("data/all_ts.rds")
+  observe ({
+    if(input$tabs == "twitter") {
+      filtered_data <- binded_data %>%
+        filter(time_day %in% input$hours_twitter) %>%
+        filter(year %in% input$years_twitter) %>%
+        filter(source == "twitter")
+      
+      leafletProxy("map_twitter") %>% 
+        clearGroup("markers") %>%
+        addCircleMarkers(data = filtered_data, ~long, ~lat, 
+                         clusterOptions = markerClusterOptions(), group = "markers")
+    } 
+    if(input$tabs == "matatu") {
+      filtered_data <- binded_data %>%
+        filter(source == "matatu") %>%
+        filter(year %in% input$years_matatu) %>%
+        filter(injuries %in% input$injuries) %>%
+        filter(passengers >= input$passengers[1] & passengers <= input$passengers[2])
+      
+      leafletProxy("map_matatu") %>% 
+        clearGroup("markers") %>%
+        addCircleMarkers(data = filtered_data, ~long, ~lat, 
+                         clusterOptions = markerClusterOptions(), group = "markers")
+    }
     
-    plot_ly(data = all_ts, x = ~date) %>%
-      add_lines(y = ~twitter, name = 'Twitter') %>%
-      add_lines(y = ~matatu, name = 'Matatus') %>%
-      add_lines(y = ~govt, name = 'Government') %>%
+    
+  })
+  
+  output$lines <- renderPlotly({
+    all_ts <- readRDS("data/data_ts.rds")
+    
+    plot_ly(data = all_ts, x = ~date, mode = "lines") %>%
+      add_trace(y = ~twitter, mode = "lines") %>%
       layout(
         yaxis = list(title = "Number of Accidents"),
         xaxis = list(title = ""),
         margin = list(b = 100)
       )
   })
+  
+  observe({
+    if("matatu" %in% input$lines_input) {
+      plotlyProxy("lines") %>%
+        add_trace(y = ~matatu, mode = "lines")
+    }
+  })
+  
 }
 
 # Run the application 
