@@ -43,7 +43,7 @@ nairobi_constituencies <- ke_constituencies[ke_constituencies@data$NAME_1 %in% c
 matatu_accidents <- read_csv("matatu_data/processed_incidents.csv") %>%
   mutate(injuries = factor(maincategory, levels = c("BOTH", "INJURY", "NON INJURY"), 
                            labels = c("Both", "Injuries", "No Injuries"))) %>%
-  mutate(passengers_cat = cut(passengers, c(10,20,30,40,50,60,70))) %>%
+  mutate(passengers_cat = cut(passengers, c(0,10,20,30,40,50,60,70))) %>%
   mutate(date = ymd_hms(incidentdate)) %>%
   mutate(county = factor(county)) %>% 
   mutate(county = reorder(county, county, function(x) -length(x))) %>%
@@ -52,42 +52,33 @@ matatu_accidents <- read_csv("matatu_data/processed_incidents.csv") %>%
   mutate(day = wday(date, label = TRUE)) %>%
   mutate(source = "matatu") %>%
   filter(!is.na(county)) %>% filter(injuries != "Both") %>%
-  filter(county %in% counties) %>%
-  filter(year >= 2012)
+  filter(county %in% counties)
 
-matatu_accidents_may2may <- matatu_accidents %>% 
-  filter(date >= ymd("2012-05-01") & date <= ymd("2014-04-30"))
+matatu_accidents_aug2jul <- matatu_accidents %>% 
+  filter(date >= ymd("2012-08-01") & date <= ymd("2014-07-30")) %>%
+  mutate(year_compare = case_when(date >= ymd("2012-08-01") & date < ymd("2013-08-01") ~ "2012-2013",
+                                  date >= ymd("2013-08-01") & date < ymd("2014-08-01") ~ "2013-2014")) %>%
+  mutate(year_compare = ordered(year_compare))
 
-matatu_passengers_total<- matatu_accidents %>%
-  group_by(year, passengers_cat) %>%
+matatu_passengers_total<- matatu_accidents_aug2jul %>%
+  group_by(year_compare, passengers_cat) %>%
   summarise(n = n())
 
-matatu_passengers_avg <- matatu_accidents %>%
-  group_by(year, passengers_cat) %>%
-  mutate(days = case_when(year < 2014 ~ 365,
-                          year == 2014 ~ 223)) %>%
-  summarise(mean = n()/max(days))
-
-matatu_injuries_avg <- matatu_accidents %>%
-  group_by(year, injuries) %>%
-  mutate(days = case_when(year < 2014 ~ 365,
-                          year == 2014 ~ 223)) %>%
-  summarise(mean = n()/max(days))
-
-matatu_passengers_total_may2may <- matatu_accidents_may2may %>%
-  group_by(year, passengers_cat) %>%
-  summarise(n = n())
-
-matatu_passengers_avg_may2may <- matatu_accidents_may2may %>%
-  group_by(year, passengers_cat) %>%
+matatu_passengers_avg <- matatu_accidents_aug2jul %>%
+  group_by(year_compare, passengers_cat) %>%
   summarise(mean = n()/365)
 
-saveRDS(matatu_accidents_may2may, "accidents-dashboard/data/matatu_may2012_2014.rds")
+matatu_injuries_avg <- matatu_accidents_aug2jul %>%
+  group_by(year_compare, injuries) %>%
+  summarise(mean = n()/365)
+
+saveRDS(matatu_accidents_aug2jul, "accidents-dashboard/data/matatu_2012_2014.rds")
+write_csv(matatu_accidents_aug2jul, "matatu_data/matatu_aug2jul_2012_2014.csv")
 
 matatu_accidents_feb2may <- matatu_accidents %>%
   filter(date >= ymd("2014-02-01") & date <= ymd("2014-04-30"))
 
-matatu_ts <- matatu_accidents_may2may %>%
+matatu_ts <- matatu_accidents_aug2jul %>%
   mutate(date = floor_date(date, "m")) %>%
   group_by(date, injuries) %>%
   summarise(n = n()) %>%
@@ -175,7 +166,7 @@ binded_govt_twitter_hour <- binded_govt_twitter %>%
 
 ### Matatu data
 ## create a data frame of counts at the constituency level
-matatu_accidents_constituency <- matatu_accidents_may2may %>%
+matatu_accidents_constituency <- matatu_accidents_aug2jul %>%
   group_by(constituency) %>%
   summarise(n = n()) %>%
   left_join(nairobi_constituencies@data[,c("OBJECTID", "NAME_2")], by = c("constituency" = "NAME_2"))
@@ -307,83 +298,81 @@ ggplot(binded_govt_twitter_hour) +
   theme(plot.title = element_text(lineheight = 0.5, hjust = 0.5))
 
 #### Matatu Plots
-matatu_county <- ggplot(matatu_accidents) +
+matatu_county <- ggplot(matatu_accidents_aug2jul) +
   geom_bar(aes(x = county, fill = injuries), color = "black") +
   scale_fill_manual(values = cbPalette, name = NULL) +
   theme_classic() + 
   ylab("Number of Accidents") +
   xlab("County") +
-  ggtitle("Matatu Accidents by County (Jan-2012 to Aug-2014)") +
+  ggtitle("Matatu Accidents by County (Aug-2012 to Jul-2012)") +
   theme(plot.title = element_text(lineheight = 0.5, hjust = 0.5))
 
-matatu_total_year <- ggplot(matatu_accidents) +
-  geom_bar(aes(x = year, fill = injuries), color = "black") +
+matatu_total_year <- ggplot(matatu_accidents_aug2jul) +
+  geom_bar(aes(x = year_compare, fill = injuries), color = "black") +
   scale_fill_manual(values = cbPalette, name = NULL) +
   theme_classic() + 
   xlab("Year") +
   ylab("Number of Accidents") +
-  ggtitle("Total Matatu Accidents by Year (Jan-2012 to Aug-2014)") +
+  ggtitle("Total Matatu Accidents by Year (Aug to July)") +
   theme(plot.title = element_text(lineheight = 0.5, hjust = 0.5))
 
 matatu_injuries_avg_year <- ggplot(matatu_injuries_avg) +
-  geom_col(aes(x = year, y = mean, color = injuries, fill = injuries), color = "black",
+  geom_col(aes(x = year_compare, y = mean, color = injuries, fill = injuries), color = "black",
            position = position_dodge()) +
-  geom_text(aes(x = year, y = mean, label = round(mean, 2)),
+  geom_text(aes(x = year_compare, y = mean, label = round(mean, 2)),
             nudge_x = -0.12, nudge_y = 0.5) +
   scale_fill_manual(values = cbPalette, name = NULL) +
   theme_classic() + 
   xlab("Year") +
   ylab("Average Number of Accidents per Day") +
-  ggtitle("Average Daily Matatu Accidents by Year and Injury Status (Jan-2012 to Aug-2014)",
-          subtitle = "2012 and 2013 have 365 days, while 2014 has 223 days") +
+  ggtitle("Average Daily Matatu Accidents by Year (Aug to July) and Injury Status") +
   theme(plot.title = element_text(lineheight = 0.5, hjust = 0.5),
         plot.subtitle = element_text(lineheight = 0.5, hjust = 0.5))
 
-matatu_month <- ggplot(matatu_accidents) +
+matatu_month <- ggplot(matatu_accidents_aug2jul) +
   geom_bar(aes(x = month, fill = injuries), color = "black") +
   scale_fill_manual(values = cbPalette, name = NULL) +
   theme_classic() + 
   xlab("Month") +
   ylab("Number of Accidents") +
-  ggtitle("Matatu Accidents by Month (Jan-2012 to Aug-2014)") +
+  ggtitle("Matatu Accidents by Month (Aug 2012 to July 2014)") +
   theme(plot.title = element_text(lineheight = 0.5, hjust = 0.5))
 
-matatu_day <- ggplot(matatu_accidents) +
+matatu_day <- ggplot(matatu_accidents_aug2jul) +
   geom_bar(aes(x = day, fill = injuries), color = "black") +
   scale_fill_manual(values = cbPalette, name = NULL) +
   theme_classic() +
   xlab("Day of Week") +
   ylab("Number of Accidents") +
-  ggtitle("Matatu Accidents by Day of Week (Jan-2012 to Aug-2014)")
+  ggtitle("Matatu Accidents by Day of Week (Aug 2012 to July 2014)")
 
-matatu_injuries_passengers <- ggplot(matatu_accidents) +
+matatu_injuries_passengers <- ggplot(matatu_accidents_aug2jul) +
   geom_point(aes(x = passengers, y = injuredpersons, color = county)) + 
   scale_color_manual(values = cbPalette, name = "County") +
   theme_classic() + 
   xlab("Number of Passengers") +
   ylab("Number of Injuries") +
-  ggtitle("Injuries by Number of Passengers Involved in Matatu Accidents (Jan-2012 to Aug-2014)") +
+  ggtitle("Injuries by Number of Passengers Involved in Matatu Accidents (Aug 2012 to July 2014)") +
   theme(plot.title = element_text(lineheight = 0.5, hjust = 0.5))
 
 matatu_total_passengers_year <- ggplot(matatu_passengers_total) +
-  geom_bar(aes(x = year, y = n, color = passengers_cat, fill = passengers_cat), color = "black", 
+  geom_bar(aes(x = year_compare, y = n, color = passengers_cat, fill = passengers_cat), color = "black", 
            stat = "identity", position = position_dodge()) +
   scale_fill_manual(values = cbPalette, name = "Number of Passengers") + 
   theme_classic() +
   xlab("Year") +
   ylab("Number of Accidents") +
-  ggtitle("Number of Matatu Accidents by No. Passengers (Jan-2012 to Aug-2014)") +
+  ggtitle("Number of Matatu Accidents by No. Passengers and Year (Aug to July)") +
   theme(plot.title = element_text(lineheight = 0.5, hjust = 0.5))
 
 matatu_avg_passengers_year <- ggplot(matatu_passengers_avg) +
-  geom_bar(aes(x = year, y = mean, color = passengers_cat, fill = passengers_cat), color = "black", 
+  geom_bar(aes(x = year_compare, y = mean, color = passengers_cat, fill = passengers_cat), color = "black", 
            stat = "identity", position = position_dodge()) +
   scale_fill_manual(values = cbPalette, name = "Number of Passengers") + 
   theme_classic() +
   xlab("Year") +
   ylab("Average Number of Accidents per Day") +
-  ggtitle("Average Daily Matatu Accidents by No. Passengers (Jan-2012 to Aug-2014)",
-          subtitle = "2012 and 2013 have 365 days, while 2014 has 223") +
+  ggtitle("Average Daily Matatu Accidents by No. Passengers and Year (Aug to July)") +
   theme(plot.title = element_text(lineheight = 0.5, hjust = 0.5), 
         plot.subtitle = element_text(lineheight = 0.5, hjust = 0.5))
 
@@ -393,7 +382,7 @@ matatu_area <- ggplot(matatu_ts) +
   scale_color_manual(values = cbPalette, guide = FALSE) +
   xlab("Year-Month") +
   ylab("Number of Accidents") +
-  ggtitle("Number of Matatu Accidents (May 2012 to May 2014)") +
+  ggtitle("Number of Matatu Accidents (Aug 2012 to July 2014)") +
   theme_classic() +
   theme(plot.title = element_text(lineheight = 0.5, hjust = 0.5))
 
@@ -402,7 +391,7 @@ matatu_line <- ggplot(matatu_ts) +
   scale_color_manual(values = cbPalette, name = NULL) +
   xlab("Year-Month") +
   ylab("Number of Accidents") +
-  ggtitle("Number of Matatu Accidents (May 2012 to May 2014)") +
+  ggtitle("Number of Matatu Accidents (Aug 2012 to July 2014)") +
   theme_classic() +
   theme(plot.title = element_text(lineheight = 0.5, hjust = 0.5))
 
@@ -412,7 +401,7 @@ area_animate <- ggplot(matatu_ts, aes(frame = date_int, cumulative = TRUE)) +
   scale_color_manual(values = cbPalette, guide = FALSE) +
   xlab("Year-Month") +
   ylab("Number of Accidents") +
-  ggtitle("Number of Matatu Accidents (May 2012 to May 2014)") +
+  ggtitle("Number of Matatu Accidents (Aug 2012 to July 2014)") +
   theme_classic() +
   theme(plot.title = element_text(lineheight = 0.5, hjust = 0.5))
 
@@ -423,7 +412,7 @@ line_animate <- ggplot(matatu_ts, aes(frame = date_int, cumulative = TRUE)) +
   scale_color_manual(values = cbPalette, name = NULL) +
   xlab("Year-Month") +
   ylab("Number of Accidents") +
-  ggtitle("Number of Matatu Accidents (May 2012 to May 2014)") +
+  ggtitle("Number of Matatu Accidents (Aug 2012 to July 2014)") +
   theme_classic() +
   theme(plot.title = element_text(lineheight = 0.5, hjust = 0.5))
 
